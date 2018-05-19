@@ -57,7 +57,7 @@ class DSOSampling(DenseToSparse):
                 .reshape(h, w, r1, c1))
 
     def dense_to_sparse(self, rgb, depth):
-        if(rgb.ndim > 2):
+        if(rgb.ndim == 3):
             gray = rgb2grayscale(rgb)
         else:
             gray = rgb
@@ -101,6 +101,10 @@ class DSOSampling(DenseToSparse):
             sub_window_size = sub_window_size * 2
             grad_th = grad_th - 1
 
+        if(np.count_nonzero(mask) == 0):
+            uar = UniformSampling(self.num_samples)
+            return uar.dense_to_sparse(rgb, depth)
+        
         prob = float(self.num_samples) / np.count_nonzero(mask)
 
         mask_keep = np.random.uniform(0, 1, mask.shape) < prob

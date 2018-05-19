@@ -6,7 +6,7 @@ import torchvision.models
 import collections
 import math
 
-oheight, owidth = 228, 304
+oheight, owidth = 256, 320
 
 class Unpool(nn.Module):
     # Unpool: 2*2 unpooling with zero padding 
