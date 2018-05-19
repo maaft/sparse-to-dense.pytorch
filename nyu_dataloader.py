@@ -68,6 +68,8 @@ def train_transform(rgb, depth):
     # random color jittering
     rgb_np = color_jitter(rgb_np)
 
+    rgb_np = rgb2grayscale(rgb_np)
+
     rgb_np = np.asfarray(rgb_np, dtype='float') / 255
     depth_np = transform(depth_np)
 
@@ -82,13 +84,15 @@ def val_transform(rgb, depth):
         transforms.CenterCrop((oheight, owidth)),
     ])
     rgb_np = transform(rgb)
+    rgb_np = rgb2grayscale(rgb_np)
     rgb_np = np.asfarray(rgb_np, dtype='float') / 255
     depth_np = transform(depth_np)
 
     return rgb_np, depth_np
 
 def rgb2grayscale(rgb):
-    return rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
+    gray = rgb[:,:,0] * 0.2989 + rgb[:,:,1] * 0.587 + rgb[:,:,2] * 0.114
+    return np.repeat(gray[:, :, np.newaxis], 3, axis=2)
 
 
 to_tensor = transforms.ToTensor()
