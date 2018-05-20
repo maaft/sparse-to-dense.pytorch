@@ -57,6 +57,7 @@ class DSOSampling(DenseToSparse):
                 .reshape(h, w, r1, c1))
 
     def dense_to_sparse(self, rgb, depth):
+        rgb = np.asfarray(rgb, dtype='float') * 255
         if(rgb.ndim == 3):
             gray = rgb2grayscale(rgb)
         else:

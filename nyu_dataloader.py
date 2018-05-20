@@ -57,7 +57,7 @@ def train_transform(rgb, depth):
 
     # perform 1st part of data augmentation
     transform = transforms.Compose([
-        #transforms.Resize(240.0 / iheight), # this is for computational efficiency, since rotation is very slow
+        transforms.Resize(260.0 / iheight), # this is for computational efficiency, since rotation is very slow
         transforms.Rotate(angle),
         transforms.Resize(s),
         transforms.CenterCrop((oheight, owidth)),
@@ -68,7 +68,7 @@ def train_transform(rgb, depth):
     # random color jittering
     rgb_np = color_jitter(rgb_np)
 
-    rgb_np = rgb2grayscale(rgb_np)
+    #rgb_np = rgb2grayscale(rgb_np)
 
     rgb_np = np.asfarray(rgb_np, dtype='float') / 255
     depth_np = transform(depth_np)
@@ -80,11 +80,11 @@ def val_transform(rgb, depth):
 
     # perform 1st part of data augmentation
     transform = transforms.Compose([
-        transforms.Resize(240.0 / iheight),
+        transforms.Resize(260.0 / iheight),
         transforms.CenterCrop((oheight, owidth)),
     ])
     rgb_np = transform(rgb)
-    rgb_np = rgb2grayscale(rgb_np)
+    #rgb_np = rgb2grayscale(rgb_np)
     rgb_np = np.asfarray(rgb_np, dtype='float') / 255
     depth_np = transform(depth_np)
 
