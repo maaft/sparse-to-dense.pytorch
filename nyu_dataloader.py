@@ -85,7 +85,7 @@ def val_transform(rgb, depth):
     ])
     rgb_np = transform(rgb)
 
-    rgb_np = rgb2grayscale(rgb_np)
+    #rgb_np = rgb2grayscale(rgb_np)
     rgb_np = np.asfarray(rgb_np, dtype='float') / 255
     depth_np = transform(depth_np)
 
