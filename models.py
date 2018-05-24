@@ -6,7 +6,7 @@ import torchvision.models
 import collections
 import math
 
-oheight, owidth = 320, 320
+oheight, owidth = 256, 320
 
 class ResidualConvUnit(nn.Module):
 
@@ -46,7 +46,7 @@ class MultiResolutionFusion(nn.Module):
                 self.add_module("resolve{}".format(i), nn.Sequential(
                     nn.Conv2d(feat, out_feats, kernel_size=3,
                               stride=1, padding=1, bias=False),
-                    nn.Upsample(scale_factor=scale_factor, mode='bilinear', align_corners=True)
+                    nn.Upsample(scale_factor=scale_factor, mode='bilinear')
                 ))
             else:
                 self.add_module(
@@ -416,7 +416,7 @@ def choose_decoder(decoder, in_channels):
 
 
 class RefineNet(nn.Module):
-    def __init__(self, layers, features, in_channels, size=oheight, out_channels=1, pretrained=True):
+    def __init__(self, layers, decoder, features, in_channels, input_size=oheight, out_channels=1, pretrained=True):
 
         if layers not in [18, 34, 50, 101, 152]:
             raise RuntimeError(
@@ -453,8 +453,6 @@ class RefineNet(nn.Module):
         self.layer4_rn = nn.Conv2d(
             2048, 2 * features, kernel_size=3, stride=1, padding=1, bias=False)
 
-        input_size = (in_channels, size)
-
         self.refinenet4 = RefineNetBlock(
             2 * features, (2 * features, input_size // 32))
         self.refinenet3 = RefineNetBlock(
@@ -467,8 +465,16 @@ class RefineNet(nn.Module):
         self.output_conv = nn.Sequential(
             ResidualConvUnit(features),
             ResidualConvUnit(features),
-            nn.Conv2d(features, 1, kernel_size=1, stride=1, padding=0, bias=True)
+            nn.Conv2d(features, 1, kernel_size=3, stride=1, padding=0, bias=True)
         )
+
+        #self.conv2 = nn.Conv2d(features, features // 2, kernel_size=1, bias=False)
+        #self.bn2 = nn.BatchNorm2d(features // 2)
+        #self.decoder = choose_decoder(decoder, features // 2)
+
+        # setting bias=true doesn't improve accuracy
+        #self.conv3 = nn.Conv2d(features // 32, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bilinear = nn.Upsample(size=(oheight, owidth), mode='bilinear')
 
     def forward(self, x):
         # resnet
@@ -492,9 +498,17 @@ class RefineNet(nn.Module):
         path_2 = self.refinenet2(path_3, layer_2_rn)
         path_1 = self.refinenet1(path_2, layer_1_rn)
 
-        out = self.output_conv(path_1)
+        x = self.output_conv(path_1)
 
-        return out
+        #x = self.conv2(path_1)
+        #x = self.bn2(x)
+
+        # decoder
+        #x = self.decoder(x)
+        #x = self.conv3(x)
+        x = self.bilinear(x)
+
+        return x
 
 class ResNet(nn.Module):
     def __init__(self, layers, decoder, in_channels=3, out_channels=1, pretrained=True):

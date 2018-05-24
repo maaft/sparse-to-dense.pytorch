@@ -45,7 +45,7 @@ def h5_loader(path):
     return rgb, depth
 
 iheight, iwidth = 480, 640 # raw image size
-oheight, owidth = 320, 320 # image size after pre-processing
+oheight, owidth = 256, 320 # image size after pre-processing
 color_jitter = transforms.ColorJitter(0.4, 0.4, 0.4)
 
 def train_transform(rgb, depth):
@@ -57,7 +57,7 @@ def train_transform(rgb, depth):
 
     # perform 1st part of data augmentation
     transform = transforms.Compose([
-        transforms.Resize(322.0 / iheight), # this is for computational efficiency, since rotation is very slow
+        transforms.Resize((oheight + 2.0) / iheight), # this is for computational efficiency, since rotation is very slow
         transforms.Rotate(angle),
         transforms.Resize(s),
         transforms.CenterCrop((oheight, owidth)),
@@ -80,11 +80,12 @@ def val_transform(rgb, depth):
 
     # perform 1st part of data augmentation
     transform = transforms.Compose([
-        transforms.Resize(322.0 / iheight),
+        transforms.Resize((oheight + 2.0) / iheight),
         transforms.CenterCrop((oheight, owidth)),
     ])
     rgb_np = transform(rgb)
-    #rgb_np = rgb2grayscale(rgb_np)
+
+    rgb_np = rgb2grayscale(rgb_np)
     rgb_np = np.asfarray(rgb_np, dtype='float') / 255
     depth_np = transform(depth_np)
 
@@ -181,6 +182,7 @@ class NYUDataset(data.Dataset):
             input_np = self.create_rgbd(rgb_np, depth_np)
         elif self.modality == 'd':
             input_np = self.create_sparse_depth(rgb_np, depth_np)
+
 
         input_tensor = to_tensor(input_np)
         while input_tensor.dim() < 3:

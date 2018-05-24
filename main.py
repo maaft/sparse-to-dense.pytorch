@@ -57,6 +57,8 @@ parser.add_argument('--window-size', default=32, type=int, metavar='N',
                     help='defines the size of a region for calculating region based gradient threshold as defined in DSO (default: 32)')
 parser.add_argument('--sub-window-size', default=2, type=int, metavar='N',
                     help='starting window-size for maximum gradient search as described in DSO (default: 2)')
+parser.add_argument('--eval-path', default="", metavar='Path',
+                    help='model to be loaded in eval mode')
 parser.add_argument('--sparsifier', metavar='SPARSIFIER', default=UniformSampling.name,
                     choices=sparsifier_names,
                     help='sparsifier: ' +
@@ -124,8 +126,8 @@ def main():
 
     # create results folder, if not already exists
     output_directory = os.path.join('results',
-        '{}.sparsifier={}.modality={}.arch={}.decoder={}.criterion={}.lr={}.bs={}'.
-                                    format(args.data, sparsifier, args.modality, args.arch, args.decoder, args.criterion, args.lr, args.batch_size))
+        '{}.refinenet={}.sparsifier={}.modality={}.arch={}.decoder={}.criterion={}.lr={}.bs={}'.
+                                    format(args.data, args.userefinenet, sparsifier, args.modality, args.arch, args.decoder, args.criterion, args.lr, args.batch_size))
     if not os.path.exists(output_directory):
         os.makedirs(output_directory)
     train_csv = os.path.join(output_directory, 'train.csv')
@@ -160,6 +162,8 @@ def main():
 
     # evaluation mode
     if args.evaluate:
+        if(args.eval_path != ""):
+            output_directory = args.eval_path
         best_model_filename = os.path.join(output_directory, 'model_best.pth.tar')
         if os.path.isfile(best_model_filename):
             print("=> loading best model '{}'".format(best_model_filename))
@@ -194,7 +198,7 @@ def main():
         in_channels = len(args.modality)
         if args.arch == 'resnet50':
             if args.userefinenet:
-                model = RefineNet(layers=50, features=256, in_channels=in_channels)
+                model = RefineNet(layers=50, decoder=args.decoder, features=256, in_channels=in_channels)
             else:
                 model = ResNet(layers=50, decoder=args.decoder, in_channels=in_channels,
                     out_channels=out_channels, pretrained=args.pretrained)
@@ -310,8 +314,10 @@ def validate(val_loader, model, epoch, write_to_file=True):
 
     end = time.time()
     for i, (input, target) in enumerate(val_loader):
+
         input, target = input.cuda(), target.cuda()
         input_var = torch.autograd.Variable(input)
+
         target_var = torch.autograd.Variable(target)
         torch.cuda.synchronize()
         data_time = time.time() - end
