@@ -465,16 +465,20 @@ class RefineNet(nn.Module):
         self.output_conv = nn.Sequential(
             ResidualConvUnit(features),
             ResidualConvUnit(features),
-            nn.Conv2d(features, 1, kernel_size=3, stride=1, padding=0, bias=True)
         )
 
-        #self.conv2 = nn.Conv2d(features, features // 2, kernel_size=1, bias=False)
-        #self.bn2 = nn.BatchNorm2d(features // 2)
-        #self.decoder = choose_decoder(decoder, features // 2)
+        self.conv2 = nn.Conv2d(features, features // 2, kernel_size=1, bias=False)
+        self.bn2 = nn.BatchNorm2d(features // 2)
+        self.decoder = choose_decoder(decoder, features // 2)
 
         # setting bias=true doesn't improve accuracy
-        #self.conv3 = nn.Conv2d(features // 32, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        self.conv3 = nn.Conv2d(features // 32, out_channels, kernel_size=3, stride=1, padding=1, bias=False)
         self.bilinear = nn.Upsample(size=(oheight, owidth), mode='bilinear')
+
+        self.conv2.apply(weights_init)
+        self.bn2.apply(weights_init)
+        self.decoder.apply(weights_init)
+        self.conv3.apply(weights_init)
 
     def forward(self, x):
         # resnet
@@ -500,12 +504,12 @@ class RefineNet(nn.Module):
 
         x = self.output_conv(path_1)
 
-        #x = self.conv2(path_1)
-        #x = self.bn2(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
 
         # decoder
-        #x = self.decoder(x)
-        #x = self.conv3(x)
+        x = self.decoder(x)
+        x = self.conv3(x)
         x = self.bilinear(x)
 
         return x
