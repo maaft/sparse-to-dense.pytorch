@@ -14,7 +14,7 @@ import torch.optim
 import torch.utils.data
 
 from nyu_dataloader import NYUDataset
-from models import Decoder, ResNet, RefineNet
+from models import Decoder, ResNet, RefineNet, RCNN
 from metrics import AverageMeter, Result
 from dense_to_sparse import UniformSampling, SimulatedStereo, DSOSampling
 import criteria
@@ -98,6 +98,9 @@ parser.add_argument('--pretrained', dest='pretrained', action='store_true',
                     default=True, help='use ImageNet pre-trained weights (default: True)')
 parser.add_argument('--use-refinenet', dest='userefinenet', action='store_true',
                     help='Use RefineNet instead of ResNet')
+
+parser.add_argument('--use-rcnn', dest='usercnn', action='store_true',
+                    help='Use RCNN instead of ResNet')
 
 fieldnames = ['mse', 'rmse', 'absrel', 'lg10', 'mae', 
                 'delta1', 'delta2', 'delta3', 
@@ -199,6 +202,8 @@ def main():
         if args.arch == 'resnet50':
             if args.userefinenet:
                 model = RefineNet(layers=50, decoder=args.decoder, features=256, in_channels=in_channels)
+            elif args.usercnn:
+                model = RCNN(layers=50, batchsize=args.batch_size, decoder=args.decoder, in_channels=in_channels, out_channels=out_channels, pretrained=args.pretrained)
             else:
                 model = ResNet(layers=50, decoder=args.decoder, in_channels=in_channels,
                     out_channels=out_channels, pretrained=args.pretrained)
