@@ -10,6 +10,136 @@ from blocks import *
 oheight, owidth = 256, 320
 #oheight, owidth = 32, 40
 
+class DenseBottleneck(nn.Module):
+    def __init__(self, nChannels, growthRate, downsample=False, upsample=False):
+        super(DenseBottleneck, self).__init__()
+        interChannels = 4*growthRate
+        self.bn1 = nn.BatchNorm2d(nChannels)
+        self.conv1 = nn.Conv2d(nChannels, interChannels, kernel_size=1,
+                               bias=False)
+        self.bn2 = nn.BatchNorm2d(interChannels)
+        if downsample:
+            self.conv2 = nn.Conv2d(interChannels, growthRate, kernel_size=3,
+                                   padding=1, stride=2, bias=False)
+        elif upsample:
+            self.conv2 = nn.ConvTranspose2d(interChannels, growthRate, kernel_size=3,
+                                   padding=1, stride=2, bias=False)
+        else:
+            self.conv2 = nn.Conv2d(interChannels, growthRate, kernel_size=3,
+                                   padding=1, bias=False)
+
+    def forward(self, x):
+        out = self.conv1(F.relu(self.bn1(x)))
+        out = self.conv2(F.relu(self.bn2(out)))
+        out = torch.cat((x, out), 1)
+        return out
+
+class DenseBlock(nn.Module):
+    def __init__(self, nChannels, growthRate, nDenseBlocks, downsample = False, upsample = False):
+        num_inputs = nChannels
+        layers = []
+        layers.append(nn.Conv2d(nChannels, nChannels, kernel_size=3, padding=1, bias=False))
+        for i in range(int(nDenseBlocks)):
+            if i < int(nDenseBlocks) - 1: # only down-/upsample on last layer
+                layers.append(DenseBottleneck(num_inputs + 2, growthRate)) # + 2 for S1, S2 sparse-depth maps
+            else:
+                layers.append(DenseBottleneck(num_inputs + 2, growthRate, downsample, upsample))
+            num_inputs += growthRate
+        layers.append(nn.Conv2d(growthRate, nChannels, kernel_size=3, padding=1, stride=2, bias=False))
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, x): # x = torch.cat((input, S1, S2), 1)
+        return self.layers(x)
+
+class D3(nn.Module):
+    def __init__(self, in_channels, nChannels, growthRate, nDenseBlocks):
+        super(D3, self).__init__()
+        self.downconv = nn.Conv2d(1, 1, 1, stride=2)
+        self.input_conv = nn.Conv2d(in_channels, nChannels, kernel_size=3, stride=2)
+
+        for i in range(4):
+            self.add_module("down{}".format(i), self._make_dense(nChannels, growthRate, nDenseBlocks, downsample=True))
+            self.add_module("up{}".format(i), self._make_dense(nChannels, growthRate, nDenseBlocks, upsample=True))
+
+        for i in range(5):
+            self.add_module("dense{}".format(i), self._make_dense(nChannels, growthRate, nDenseBlocks))
+
+        self.output_conv = nn.ConvTranspose2d(64, 1, kernel_size=3, stride=2)
+
+    def forward(self, *input):
+        S1 = input[1]
+        S2 = input[2]
+
+        s12 = []
+        for i in range(5):
+            S1 = self.downconv(S1)
+            S2 = self.downconv(S2)
+            s12.append(torch.cat((S1, S2), 1))
+
+        out = self.input_conv(input)
+
+        skip = []
+
+        for i in range(3):
+            out = torch.cat((out, s12[i]), 1)
+            out = self.__getattr__("down{}".format(i))(out)
+            skip.append(self.__getattr__("dense{}".format(i))(out))
+
+        #out = torch.cat((out, s12[0]), 1)
+        #out = self.__getattr__("down0")(out)
+        #skip0 = self.__getattr__("dense0")(out)
+
+        #out = torch.cat((out, s12[1]), 1)
+        #out = self.__getattr__("down1")(out)
+        #skip1 = self.__getattr__("dense1")(out)
+
+        #out = torch.cat((out, s12[2]), 1)
+        #out = self.__getattr__("down2")(out)
+        #skip2 = self.__getattr__("dense2")(out)
+
+        out = torch.cat((out, s12[3]), 1)
+        out = self.__getattr__("down3")(out)
+
+        out = self.__getattr__("dense3")(out)
+        out = self.__getattr__("dense4")(out)
+
+        out = self.__getattr__("up3")(out)
+
+        for i in range(3):
+            out = skip[2-i] + out
+            out = self.__getattr__("up{}".format(2-i))(out)
+
+        #out = skip2 + out
+        #out = self.__getattr__("up2")(out)
+
+        #out = skip1 + out
+        #out = self.__getattr__("up1")(out)
+
+        #out = skip0 + out
+        #out = self.__getattr__("up0")(out)
+
+        out = self.output_conv(out)
+
+        out = out + S1
+
+        return out
+
+
+    # growthRate = k = 12
+    # nDenseBlocks = L = 5
+    def _make_dense(self, nChannels, growthRate, nDenseBlocks, downsample = False, upsample = False):
+        num_inputs = nChannels
+        layers = []
+        layers.append(nn.Conv2d(nChannels, nChannels, kernel_size=3, padding=1, bias=False))
+        for i in range(int(nDenseBlocks)):
+            if i < int(nDenseBlocks) - 1: # only down-/upsample on last layer
+                layers.append(DenseBottleneck(num_inputs + 2, growthRate)) # + 2 for S1, S2 sparse-depth maps
+            else:
+                layers.append(DenseBottleneck(num_inputs + 2, growthRate, downsample, upsample))
+            num_inputs += growthRate
+        layers.append(nn.Conv2d(growthRate, nChannels, kernel_size=3, padding=1, stride=2, bias=False))
+        return nn.Sequential(*layers)
+
 class Unpool(nn.Module):
     # Unpool: 2*2 unpooling with zero padding 
     def __init__(self, num_channels, stride=2):
@@ -84,6 +214,10 @@ class DeConv(Decoder):
         self.layer2 = convt(in_channels // 2)
         self.layer3 = convt(in_channels // (2 ** 2))
         self.layer4 = convt(in_channels // (2 ** 3))
+
+#class FastUpConv(Decoder):
+#    def upconv_module(self, in_channels):
+#        conv_a = nn.Conv2d(in_channels, in_channels, kernel_size=(2,3))
 
 class UpConv(Decoder):
     # UpConv decoder consists of 4 upconv modules with decreasing number of channels and increasing feature map size
